@@ -1,0 +1,22 @@
+syntax = "proto3";
+option go_package = "grpc/fluxcli";
+
+package fluxcli;
+
+// Service definition for an external plugin like kubectl
+service ExternalPluginService {
+    rpc ListGroups(GroupRequest) returns (GroupResponse) {}
+    rpc GetGroup(GroupRequest) returns (GroupResponse) {}
+}
+
+// GroupRequest for a group
+message GroupRequest {
+    string group = 1;
+}
+
+// GroupResponse
+message GroupResponse {
+    string name = 1;
+    int64 size = 2;
+}
+
