@@ -1,33 +1,21 @@
-/*
-Copyright 2018 The Kubernetes Authors.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
 package fluence
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 
 	"k8s.io/client-go/tools/clientcmd/api"
 
-	//	"github.com/flux-framework/flux-k8s/flux-plugin/fluence"
-	pb "github.com/converged-computing/fluence-kubectl/pkg/fluence/fluxcli-grpc"
+	pb "github.com/converged-computing/fluence-kubectl/pkg/fluence/service-grpc"
+	"github.com/converged-computing/fluence-kubectl/pkg/graph"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/cli-runtime/pkg/genericiooptions"
 )
@@ -62,6 +50,8 @@ type FluenceOptions struct {
 	groupFlag      string
 
 	rawConfig api.Config
+	server    string
+	port      string
 	args      []string
 
 	genericiooptions.IOStreams
@@ -76,11 +66,9 @@ func NewFluenceOptions(streams genericiooptions.IOStreams) *FluenceOptions {
 	}
 }
 
+// listGroups lists all group names and sizes known by the Fluence scheduler
 func (o *FluenceOptions) listGroups() error {
-
-	// NOTE this is deprecated see
-	// https://pkg.go.dev/google.golang.org/grpc@v1.60.1#WithInsecure
-	conn, err := grpc.Dial("127.0.0.1:4242", grpc.WithInsecure())
+	conn, err := grpc.Dial(o.address(), grpc.WithTransportCredentials(insecure.NewCredentials()))
 
 	if err != nil {
 		fmt.Errorf("[Fluence] Error connecting to server: %v\n", err)
@@ -127,6 +115,7 @@ func NewCmdFluence(streams genericiooptions.IOStreams) *cobra.Command {
 	}
 	cmd.Flags().BoolVar(&o.listGroupsFlag, "groups", o.listGroupsFlag, "if true, print groups and sizes known by fluence")
 	cmd.Flags().StringVar(&o.groupFlag, "group", o.groupFlag, "get a specific group")
+	cmd.Flags().StringVar(&o.port, "port", "4242", "port for GRPC server")
 	o.configFlags.AddFlags(cmd.Flags())
 	return cmd
 }
@@ -141,7 +130,12 @@ func (o *FluenceOptions) Complete(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	// This would be the name of a group provided by the user
 	o.group, err = cmd.Flags().GetString("group")
+	if err != nil {
+		return err
+	}
+	o.port, err = cmd.Flags().GetString("port")
 	if err != nil {
 		return err
 	}
@@ -151,6 +145,13 @@ func (o *FluenceOptions) Complete(cmd *cobra.Command, args []string) error {
 		return errNoContext
 	}
 
+	// Get the control plane url, and split the port from it
+	controlPlane := o.rawConfig.Clusters[o.rawConfig.CurrentContext].Server
+	u, err := url.Parse(controlPlane)
+	if err != nil {
+		return err
+	}
+	o.server = u.Host[0:strings.LastIndex(u.Host, ":")]
 	o.resultingContext = api.NewContext()
 	o.resultingContext.Cluster = currentContext.Cluster
 	o.resultingContext.AuthInfo = currentContext.AuthInfo
@@ -159,7 +160,42 @@ func (o *FluenceOptions) Complete(cmd *cobra.Command, args []string) error {
 
 // Validate ensures that all required arguments and flag values are provided
 func (o *FluenceOptions) Validate() error {
-	fmt.Println("Executing Validate()")
+	return nil
+}
+
+// address returns the grpc address toping
+func (o *FluenceOptions) address() string {
+	return fmt.Sprintf("%s:%s", o.server, o.port)
+}
+
+// listResources lists cluster resources
+func (o *FluenceOptions) listResources() error {
+	conn, err := grpc.Dial(o.address(), grpc.WithTransportCredentials(insecure.NewCredentials()))
+
+	if err != nil {
+		fmt.Errorf("[Fluence] Error connecting to server: %v\n", err)
+		return err
+	}
+	defer conn.Close()
+
+	grpcclient := pb.NewExternalPluginServiceClient(conn)
+	_, cancel := context.WithTimeout(context.Background(), 200*time.Second)
+	defer cancel()
+
+	request := &pb.ResourceRequest{}
+	r, err := grpcclient.GetResources(context.Background(), request)
+	if err != nil {
+		fmt.Errorf("[Fluence] did not get resources: %v\n", err)
+		return err
+	}
+	// Create new Json Graph
+	g := graph.ResourceGraph{}
+	err = json.Unmarshal([]byte(r.Graph), &g)
+	if err != nil {
+		fmt.Errorf("[Fluence] could not read graph into struct: %v\n", err)
+		return err
+	}
+	g.Graph.Summary()
 	return nil
 }
 
@@ -167,10 +203,17 @@ func (o *FluenceOptions) Validate() error {
 // current context based on a provided namespace.
 func (o *FluenceOptions) Run() error {
 
-	// If we were asked to list groups (or nothing)
+	// Case 1: no groups flag and no group
 	if o.listGroupsFlag || o.groupFlag == "" {
+		err := o.listResources()
+		if err != nil {
+			fmt.Printf("There was an error %s", err)
+		}
+	} else if o.listGroupsFlag {
 		fmt.Println("Listing fluence groups")
 		o.listGroups()
+	} else if o.groupFlag != "" {
+		fmt.Printf("Listing group %s\n", o.group)
 	}
 	return nil
 }

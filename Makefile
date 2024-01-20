@@ -17,7 +17,7 @@ protoc: $(LOCALBIN)
 # You can use make protoc to download proto
 .PHONY: proto
 proto: protoc
-	PATH=$(LOCALBIN):${PATH} protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative pkg/fluence/fluxcli-grpc/fluxcli.proto
+	PATH=$(LOCALBIN):${PATH} protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative pkg/fluence/service-grpc/service.proto
 
 build:
 	GO111MODULE="on" go build cmd/kubectl-fluence.go

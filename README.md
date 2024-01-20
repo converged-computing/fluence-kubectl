@@ -7,7 +7,8 @@ This is currently intended to help with debugging and development.
 
 ### Deploy Fluence
 
-You will need to deploy Fluence with the following flag for `scheduler.enableExternalService=true`:
+You will need to deploy Fluence with the following flag for `scheduler.enableExternalService=true`. See
+the [kind-config.yaml](example/kind-config.yaml) for how to deploy a kind cluster with ingress.
 
 ```bash
 helm install \
@@ -15,6 +16,17 @@ helm install \
   --set scheduler.enableExternalService=true \
   --set scheduler.sidecarimage=ghcr.io/vsoch/fluence-sidecar:latest \
         schedscheduler-plugins as-a-second-scheduler/
+```
+
+### Cluster Resources
+
+A simple `kubectl fluence` will show cluster resources.
+
+```console
+ Resource Graph Summary      
+        COUNT  CORES  MEMORY 
+            1     10   30720 
+ TOTAL      1     10   30720 
 ```
 
 ### Development
@@ -106,7 +118,7 @@ sudo rm -rf /usr/local/bin/kubectl-fluence /usr/local/bin/kubectl_complete-fluen
 
 ## TODO
 
-We will want to have a shared source for the grpc. Since it is under development, I'm creating a symbolic link for now.
+- We will want to have a shared source for the service grpc that is shared by fluence and fluence-kubectl. E.g., just the service (not the fluxcli-grpc). Since it's easy to develop locally and build the container that serves it from fluence (flux-k8s) now, that's what I'll stick with.
 
 ## Thank You
 
