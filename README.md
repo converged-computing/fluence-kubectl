@@ -18,6 +18,14 @@ helm install \
         schedscheduler-plugins as-a-second-scheduler/
 ```
 
+Note that if you are using a cloud, you might need to expose the port for ingress.
+
+```bash
+gcloud compute firewall-rules create test-cluster --allow tcp:4242
+```
+
+Note that I haven't gotten it to work on Google Cloud - I am not sure why.
+
 ### Cluster Resources
 
 A simple `kubectl fluence` will show cluster resources.
@@ -118,7 +126,9 @@ sudo rm -rf /usr/local/bin/kubectl-fluence /usr/local/bin/kubectl_complete-fluen
 
 ## TODO
 
-- We will want to have a shared source for the service grpc that is shared by fluence and fluence-kubectl. E.g., just the service (not the fluxcli-grpc). Since it's easy to develop locally and build the container that serves it from fluence (flux-k8s) now, that's what I'll stick with.
+- I don't like that the grpcs are now shared across modules and projects - I'd like a simple strategy (maybe submodules) that can get them from the same source instead.
+- We need a way to get group name / metadata directly from fluxion.
+- We can add the Info/Stats exposed endpoints to the fluxion GRPC to get better views of the cluster (stats)
 
 ## Thank You
 

@@ -22,9 +22,11 @@ const _ = grpc.SupportPackageIsVersion7
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type ExternalPluginServiceClient interface {
+	// This is supported via a shared file in the container
+	GetResources(ctx context.Context, in *ResourceRequest, opts ...grpc.CallOption) (*ResourceResponse, error)
+	// Note we currently cannot support getting group metadata, need to add handle to get info, etc.
 	ListGroups(ctx context.Context, in *GroupRequest, opts ...grpc.CallOption) (*GroupResponse, error)
 	GetGroup(ctx context.Context, in *GroupRequest, opts ...grpc.CallOption) (*GroupResponse, error)
-	GetResources(ctx context.Context, in *ResourceRequest, opts ...grpc.CallOption) (*ResourceResponse, error)
 }
 
 type externalPluginServiceClient struct {
@@ -33,6 +35,15 @@ type externalPluginServiceClient struct {
 
 func NewExternalPluginServiceClient(cc grpc.ClientConnInterface) ExternalPluginServiceClient {
 	return &externalPluginServiceClient{cc}
+}
+
+func (c *externalPluginServiceClient) GetResources(ctx context.Context, in *ResourceRequest, opts ...grpc.CallOption) (*ResourceResponse, error) {
+	out := new(ResourceResponse)
+	err := c.cc.Invoke(ctx, "/service.ExternalPluginService/GetResources", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (c *externalPluginServiceClient) ListGroups(ctx context.Context, in *GroupRequest, opts ...grpc.CallOption) (*GroupResponse, error) {
@@ -53,22 +64,15 @@ func (c *externalPluginServiceClient) GetGroup(ctx context.Context, in *GroupReq
 	return out, nil
 }
 
-func (c *externalPluginServiceClient) GetResources(ctx context.Context, in *ResourceRequest, opts ...grpc.CallOption) (*ResourceResponse, error) {
-	out := new(ResourceResponse)
-	err := c.cc.Invoke(ctx, "/service.ExternalPluginService/GetResources", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 // ExternalPluginServiceServer is the server API for ExternalPluginService service.
 // All implementations must embed UnimplementedExternalPluginServiceServer
 // for forward compatibility
 type ExternalPluginServiceServer interface {
+	// This is supported via a shared file in the container
+	GetResources(context.Context, *ResourceRequest) (*ResourceResponse, error)
+	// Note we currently cannot support getting group metadata, need to add handle to get info, etc.
 	ListGroups(context.Context, *GroupRequest) (*GroupResponse, error)
 	GetGroup(context.Context, *GroupRequest) (*GroupResponse, error)
-	GetResources(context.Context, *ResourceRequest) (*ResourceResponse, error)
 	mustEmbedUnimplementedExternalPluginServiceServer()
 }
 
@@ -76,14 +80,14 @@ type ExternalPluginServiceServer interface {
 type UnimplementedExternalPluginServiceServer struct {
 }
 
+func (UnimplementedExternalPluginServiceServer) GetResources(context.Context, *ResourceRequest) (*ResourceResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetResources not implemented")
+}
 func (UnimplementedExternalPluginServiceServer) ListGroups(context.Context, *GroupRequest) (*GroupResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListGroups not implemented")
 }
 func (UnimplementedExternalPluginServiceServer) GetGroup(context.Context, *GroupRequest) (*GroupResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetGroup not implemented")
-}
-func (UnimplementedExternalPluginServiceServer) GetResources(context.Context, *ResourceRequest) (*ResourceResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetResources not implemented")
 }
 func (UnimplementedExternalPluginServiceServer) mustEmbedUnimplementedExternalPluginServiceServer() {}
 
@@ -96,6 +100,24 @@ type UnsafeExternalPluginServiceServer interface {
 
 func RegisterExternalPluginServiceServer(s grpc.ServiceRegistrar, srv ExternalPluginServiceServer) {
 	s.RegisterService(&ExternalPluginService_ServiceDesc, srv)
+}
+
+func _ExternalPluginService_GetResources_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ResourceRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ExternalPluginServiceServer).GetResources(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/service.ExternalPluginService/GetResources",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ExternalPluginServiceServer).GetResources(ctx, req.(*ResourceRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 func _ExternalPluginService_ListGroups_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -134,24 +156,6 @@ func _ExternalPluginService_GetGroup_Handler(srv interface{}, ctx context.Contex
 	return interceptor(ctx, in, info, handler)
 }
 
-func _ExternalPluginService_GetResources_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ResourceRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ExternalPluginServiceServer).GetResources(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/service.ExternalPluginService/GetResources",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ExternalPluginServiceServer).GetResources(ctx, req.(*ResourceRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 // ExternalPluginService_ServiceDesc is the grpc.ServiceDesc for ExternalPluginService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -160,16 +164,16 @@ var ExternalPluginService_ServiceDesc = grpc.ServiceDesc{
 	HandlerType: (*ExternalPluginServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
+			MethodName: "GetResources",
+			Handler:    _ExternalPluginService_GetResources_Handler,
+		},
+		{
 			MethodName: "ListGroups",
 			Handler:    _ExternalPluginService_ListGroups_Handler,
 		},
 		{
 			MethodName: "GetGroup",
 			Handler:    _ExternalPluginService_GetGroup_Handler,
-		},
-		{
-			MethodName: "GetResources",
-			Handler:    _ExternalPluginService_GetResources_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

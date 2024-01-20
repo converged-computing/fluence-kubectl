@@ -151,7 +151,12 @@ func (o *FluenceOptions) Complete(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	o.server = u.Host[0:strings.LastIndex(u.Host, ":")]
+	// Often the host doesn't have a port
+	if strings.Contains(u.Host, ":") {
+		o.server = u.Host[0:strings.LastIndex(u.Host, ":")]
+	} else {
+		o.server = u.Host
+	}
 	o.resultingContext = api.NewContext()
 	o.resultingContext.Cluster = currentContext.Cluster
 	o.resultingContext.AuthInfo = currentContext.AuthInfo
