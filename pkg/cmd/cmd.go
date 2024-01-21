@@ -116,6 +116,7 @@ func NewCmdFluence(streams genericiooptions.IOStreams) *cobra.Command {
 	cmd.Flags().BoolVar(&o.listGroupsFlag, "groups", o.listGroupsFlag, "if true, print groups and sizes known by fluence")
 	cmd.Flags().StringVar(&o.groupFlag, "group", o.groupFlag, "get a specific group")
 	cmd.Flags().StringVar(&o.port, "port", "4242", "port for GRPC server")
+	cmd.Flags().StringVar(&o.server, "host", "", "hostname for the GRPC server")
 	o.configFlags.AddFlags(cmd.Flags())
 	return cmd
 }
@@ -139,13 +140,34 @@ func (o *FluenceOptions) Complete(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+	o.server, err = cmd.Flags().GetString("host")
+	if err != nil {
+		return err
+	}
 
 	currentContext, exists := o.rawConfig.Contexts[o.rawConfig.CurrentContext]
 	if !exists {
 		return errNoContext
 	}
 
-	// Get the control plane url, and split the port from it
+	// Get the control plane url, and split the port from it ONLY if host is not set
+	// Note that if the pod is deployed to a production cluster, the host server
+	// is unlikely to be the control plane
+	if o.server == "" {
+		err = o.setHost()
+		if err != nil {
+			return err
+		}
+	}
+	o.resultingContext = api.NewContext()
+	o.resultingContext.Cluster = currentContext.Cluster
+	o.resultingContext.AuthInfo = currentContext.AuthInfo
+	return nil
+}
+
+// setHost sets the hostname from the control plane in th config
+// This usually assumes a local deployment (kind)
+func (o *FluenceOptions) setHost() error {
 	controlPlane := o.rawConfig.Clusters[o.rawConfig.CurrentContext].Server
 	u, err := url.Parse(controlPlane)
 	if err != nil {
@@ -157,9 +179,6 @@ func (o *FluenceOptions) Complete(cmd *cobra.Command, args []string) error {
 	} else {
 		o.server = u.Host
 	}
-	o.resultingContext = api.NewContext()
-	o.resultingContext.Cluster = currentContext.Cluster
-	o.resultingContext.AuthInfo = currentContext.AuthInfo
 	return nil
 }
 

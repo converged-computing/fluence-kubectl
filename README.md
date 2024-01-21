@@ -18,10 +18,49 @@ helm install \
         schedscheduler-plugins as-a-second-scheduler/
 ```
 
-Note that if you are using a cloud, you might need to expose the port for ingress.
+#### Google Cloud
+
+Note that Google Cloud will require an extra command to expose the service. I find that creating the cluster like this works:
+
+```bash
+GOOGLE_PROJECT=myproject
+gcloud container clusters create test-cluster \
+    --threads-per-core=1 \
+    --placement-type=COMPACT \
+    --num-nodes=6 \
+    --region=us-central1-a \
+    --project=${GOOGLE_PROJECT} \
+    --enable-network-policy \
+    --tags=test-cluster \
+    --enable-intra-node-visibility \
+    --machine-type=c2d-standard-8
+```
+
+Here is how to expose the port for ingress (you typically only need to do this once for an entire project):
 
 ```bash
 gcloud compute firewall-rules create test-cluster --allow tcp:4242
+```
+
+You will need to use `kubectl get pods -o wide` to see the physical node fluence is running on, and then
+get the ip address for that node with `kubectl get nodes -o wide`.
+
+```bash
+kubectl fluence --host 34.121.134.15
+```
+```console
+ Resource Graph Summary                
+        NODES  CORES/NODE  MEMORY/NODE 
+            5           3        27648 
+            1           3        26624 
+ TOTAL      6           6        54272 
+```
+
+That's the first glimpose of having one node with a slightly different type (I wonder why that is)? Possibly
+the control plane has less memory available? And of course cleanup:
+
+```bash
+gcloud container clusters delete test-cluster --region=us-central1-a
 ```
 
 Note that I haven't gotten it to work on Google Cloud - I am not sure why.
