@@ -85,7 +85,7 @@ func (g *Graph) Summary() {
 	t := table.NewWriter()
 	t.SetTitle("Resource Graph Summary")
 	t.SetOutputMirror(os.Stdout)
-	t.AppendHeader(table.Row{"", "Nodes", "Cores/Node", "Memory/Node"})
+	t.AppendHeader(table.Row{"", "Nodes", "Cores/Node", "Memory/Node (MB)"})
 	t.AppendSeparator()
 
 	// Keep totals as we go
@@ -94,8 +94,8 @@ func (g *Graph) Summary() {
 		if node.Count != 0 {
 			t.AppendRow([]interface{}{"", node.Count, node.Cores, node.Memory})
 			totals["nodes"] += int(node.Count)
-			totals["cores"] += node.Cores
-			totals["memory"] += node.Memory
+			totals["cores"] += node.Cores * int(node.Count)
+			totals["memory"] += node.Memory * int(node.Count)
 		}
 	}
 	t.AppendSeparator()
